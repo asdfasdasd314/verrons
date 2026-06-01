@@ -217,6 +217,161 @@
   background: #1f222c;
 }
 
+.panel-header--tabs {
+  padding: 0 8px;
+}
+
+.chart-indicators-bar {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a1c24;
+  background: #12141a;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.indicators-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.indicators-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.indicators-label {
+  font-size: 12px;
+  color: #8b90a0;
+  flex-shrink: 0;
+}
+
+.indicators-select {
+  min-width: 200px;
+  height: 26px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  color: #e8eaef;
+  background: #0d0e12;
+  border: 1px solid #2e303a;
+  border-radius: 4px;
+}
+
+.indicators-select:focus {
+  outline: none;
+  border-color: #5b8def;
+}
+
+.indicators-empty {
+  margin: 0;
+}
+
+.indicators-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.indicators-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.indicators-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.indicators-list-label {
+  flex: 1;
+  min-width: 0;
+  color: #e8eaef;
+}
+
+.indicators-remove {
+  font: inherit;
+  font-size: 11px;
+  color: #8b90a0;
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.indicators-remove:hover {
+  color: #ef5350;
+  background: #1f222c;
+}
+
+.indicator-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.indicator-modal {
+  width: 100%;
+  max-width: 360px;
+  padding: 16px;
+  background: #12141a;
+  border: 1px solid #2e303a;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.indicator-modal-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #e8eaef;
+}
+
+.indicator-modal-desc {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8b90a0;
+}
+
+.indicator-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.indicator-modal-input {
+  max-width: none;
+}
+
+.indicator-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.indicator-modal-apply {
+  border-color: #5b8def;
+}
+
 .chart-container {
   flex: 1;
   min-height: 0;

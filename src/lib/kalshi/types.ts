@@ -59,12 +59,41 @@ export type GetMarketCandlesticksResponse = {
 
 export type PeriodInterval = 1 | 60 | 1440
 
+export type TickTimeframe = 'tick' | 'tick-5' | 'tick-10'
+
+export type ChartTimeframe = TickTimeframe | PeriodInterval
+
+export type KalshiTrade = {
+  trade_id: string
+  ticker: string
+  count_fp: string
+  yes_price_dollars: string
+  no_price_dollars: string
+  taker_side?: 'yes' | 'no'
+  taker_outcome_side?: 'yes' | 'no'
+  created_time: string
+}
+
+export type GetTradesResponse = {
+  trades: KalshiTrade[]
+  cursor: string
+}
+
 export type MarketCandlesticks = {
   market: KalshiMarket
   bounds: MarketUnixBounds
   seriesTicker: string
-  periodInterval: PeriodInterval
+  timeframe: PeriodInterval
   startTs: number
   endTs: number
   candlesticks: KalshiCandlestick[]
 }
+
+export type MarketTickTrades = {
+  market: KalshiMarket
+  bounds: MarketUnixBounds
+  timeframe: TickTimeframe
+  trades: KalshiTrade[]
+}
+
+export type MarketChartData = MarketCandlesticks | MarketTickTrades

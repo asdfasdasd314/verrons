@@ -1,23 +1,149 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import {
   CandlestickSeries,
   ColorType,
   createChart,
   HistogramSeries,
+  LineSeries,
   type IChartApi,
   type ISeriesApi,
 } from 'lightweight-charts'
 import {
   candlesticksToChartData,
   candlesticksToVolumeData,
-  PERIOD_OPTIONS,
+  TIMEFRAME_OPTIONS,
   VOLUME_DOWN_COLOR,
   VOLUME_UP_COLOR,
 } from '../../lib/kalshi/candlesticks'
+import {
+  exponentialMovingAverage,
+  relativeStrengthIndex,
+  simpleMovingAverage,
+  type PricePoint,
+} from '../../lib/kalshi/indicators'
 import { formatFp, formatToEastern } from '../../lib/kalshi/marketMeta'
-import { getMarketCandlesticks } from '../../lib/kalshi/markets'
-import type { KalshiCandlestick, KalshiMarket, PeriodInterval } from '../../lib/kalshi/types'
+import { getMarketChartData, isTickChartData } from '../../lib/kalshi/markets'
+import {
+  isSingleTradeLineTimeframe,
+  isTickTimeframe,
+  ticksPerBar,
+} from '../../lib/kalshi/timeframes'
+import {
+  tradesToChartSeries,
+  tradesToLineData,
+  tradesToLineVolumeData,
+} from '../../lib/kalshi/trades'
+import type {
+  ChartTimeframe,
+  KalshiCandlestick,
+  KalshiMarket,
+  KalshiTrade,
+} from '../../lib/kalshi/types'
 import './index.css'
+
+const INDICATOR_COLORS = ['#f59e0b', '#5b8def', '#a78bfa', '#ec4899']
+const RSI_PANE_INDEX = 1
+const MAIN_PANE_STRETCH = 72
+const RSI_PANE_STRETCH = 24
+
+type PendingIndicatorType = 'sma' | 'ema' | 'rsi'
+
+type ChartIndicator =
+  | { id: string; type: 'sma'; period: number; color: string }
+  | { id: string; type: 'ema'; period: number; color: string }
+  | { id: string; type: 'rsi'; period: number; color: string }
+
+function nextIndicatorColor(indicators: ChartIndicator[]): string {
+  return INDICATOR_COLORS[indicators.length % INDICATOR_COLORS.length]
+}
+
+function isOverlayIndicator(
+  indicator: ChartIndicator,
+): indicator is Extract<ChartIndicator, { type: 'sma' | 'ema' }> {
+  return indicator.type === 'sma' || indicator.type === 'ema'
+}
+
+function indicatorSeriesData(
+  indicator: ChartIndicator,
+  closeSeries: PricePoint[],
+) {
+  switch (indicator.type) {
+    case 'sma':
+      return simpleMovingAverage(closeSeries, indicator.period)
+    case 'ema':
+      return exponentialMovingAverage(closeSeries, indicator.period)
+    case 'rsi':
+      return relativeStrengthIndex(closeSeries, indicator.period)
+  }
+}
+
+function getClosePriceSeries(
+  mode: ChartTimeframe,
+  candlesticks: KalshiCandlestick[],
+  trades: KalshiTrade[],
+): PricePoint[] {
+  if (isSingleTradeLineTimeframe(mode)) {
+    return tradesToLineData(trades)
+  }
+
+  if (isTickTimeframe(mode)) {
+    const { chartData } = tradesToChartSeries(trades, ticksPerBar(mode))
+    return chartData.map((bar) => ({ time: bar.time, value: bar.close }))
+  }
+
+  return candlesticksToChartData(candlesticks).map((bar) => ({
+    time: bar.time,
+    value: bar.close,
+  }))
+}
+
+function indicatorLabel(indicator: ChartIndicator): string {
+  switch (indicator.type) {
+    case 'sma':
+      return `SMA (${indicator.period})`
+    case 'ema':
+      return `EMA (${indicator.period})`
+    case 'rsi':
+      return `RSI (${indicator.period})`
+  }
+}
+
+function defaultPeriodForIndicator(type: PendingIndicatorType): string {
+  return type === 'rsi' ? '14' : '20'
+}
+
+function indicatorModalCopy(type: PendingIndicatorType): {
+  title: string
+  description: string
+} {
+  switch (type) {
+    case 'sma':
+      return {
+        title: 'Simple moving average',
+        description:
+          'Average of the last N closes. The line starts after N bars are available.',
+      }
+    case 'ema':
+      return {
+        title: 'Exponential moving average',
+        description:
+          'Weighted average that reacts faster to recent closes. Seeded with an N-bar SMA.',
+      }
+    case 'rsi':
+      return {
+        title: 'Relative strength index',
+        description:
+          'Momentum oscillator (0–100) using Wilder smoothing. Shown in a pane below the chart.',
+      }
+  }
+}
 
 function LayoutToggleIcon() {
   return (
@@ -30,13 +156,157 @@ function LayoutToggleIcon() {
   )
 }
 
+type IndicatorsPanelProps = {
+  indicators: ChartIndicator[]
+  onAddSelect: (value: string) => void
+  onRemove: (id: string) => void
+}
+
+function IndicatorsPanel({
+  indicators,
+  onAddSelect,
+  onRemove,
+}: IndicatorsPanelProps) {
+  return (
+    <div className="indicators-panel">
+      <div className="indicators-panel-row">
+        <label className="indicators-label" htmlFor="add-indicator">
+          Add indicator
+        </label>
+        <select
+          id="add-indicator"
+          className="indicators-select"
+          value=""
+          onChange={(event) => {
+            const value = event.target.value
+            if (value) onAddSelect(value)
+          }}
+        >
+          <option value="" disabled>
+            Select…
+          </option>
+          <option value="sma">Simple moving average</option>
+          <option value="ema">Exponential moving average</option>
+          <option value="rsi">Relative strength index</option>
+        </select>
+      </div>
+      {indicators.length === 0 ? (
+        <p className="panel-empty indicators-empty">
+          No indicators on the chart. Add moving averages on close prices or RSI in
+          a sub-pane below.
+        </p>
+      ) : (
+        <ul className="indicators-list">
+          {indicators.map((indicator) => (
+            <li key={indicator.id} className="indicators-list-item">
+              <span
+                className="indicators-swatch"
+                style={{ backgroundColor: indicator.color }}
+                aria-hidden="true"
+              />
+              <span className="indicators-list-label">
+                {indicatorLabel(indicator)}
+              </span>
+              <button
+                type="button"
+                className="indicators-remove"
+                onClick={() => onRemove(indicator.id)}
+                aria-label={`Remove ${indicatorLabel(indicator)}`}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+type IndicatorConfigModalProps = {
+  titleId: string
+  indicator: PendingIndicatorType
+  draft: string
+  error: string | null
+  onDraftChange: (value: string) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onClose: () => void
+}
+
+function IndicatorConfigModal({
+  titleId,
+  indicator,
+  draft,
+  error,
+  onDraftChange,
+  onSubmit,
+  onClose,
+}: IndicatorConfigModalProps) {
+  const { title, description } = indicatorModalCopy(indicator)
+
+  return (
+    <div className="indicator-modal-backdrop" onClick={onClose}>
+      <div
+        className="indicator-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id={titleId} className="indicator-modal-title">
+          {title}
+        </h2>
+        <p className="indicator-modal-desc">{description}</p>
+        <form className="indicator-modal-form" onSubmit={onSubmit}>
+          <label className="indicators-label" htmlFor="indicator-lookback">
+            {indicator === 'rsi' ? 'Period (candles)' : 'Lookback (candles)'}
+          </label>
+          <input
+            id="indicator-lookback"
+            className="market-form-input indicator-modal-input"
+            type="number"
+            min={1}
+            step={1}
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+            autoFocus
+          />
+          {error && (
+            <p className="market-form-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="indicator-modal-actions">
+            <button type="button" className="market-form-submit" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="market-form-submit indicator-modal-apply">
+              Apply
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function AnalysisPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const lineSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<'Line'>>>(new Map())
+  const closeSeriesRef = useRef<PricePoint[]>([])
 
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [indicators, setIndicators] = useState<ChartIndicator[]>([])
+  const [pendingIndicator, setPendingIndicator] = useState<PendingIndicatorType | null>(
+    null,
+  )
+  const [periodDraft, setPeriodDraft] = useState('20')
+  const [periodError, setPeriodError] = useState<string | null>(null)
+  const indicatorModalTitleId = useId()
   const [ticker, setTicker] = useState('')
   const [loadingMarket, setLoadingMarket] = useState(false)
   const [marketError, setMarketError] = useState<string | null>(null)
@@ -44,61 +314,231 @@ export default function AnalysisPage() {
   const [loadedCandlesticks, setLoadedCandlesticks] = useState<KalshiCandlestick[]>(
     [],
   )
-  const [periodInterval, setPeriodInterval] = useState<PeriodInterval>(1)
+  const [loadedTrades, setLoadedTrades] = useState<KalshiTrade[]>([])
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>(1)
   const loadedTickerRef = useRef<string | null>(null)
 
-  const applyCandlesToChart = useCallback((candlesticks: KalshiCandlestick[]) => {
-    const series = candlestickSeriesRef.current
-    const volumeSeries = volumeSeriesRef.current
-    const chart = chartRef.current
-    if (!series || !volumeSeries || !chart) return
+  const syncIndicators = useCallback(
+    (chart: IChartApi, activeIndicators: ChartIndicator[], closeSeries: PricePoint[]) => {
+      const seriesById = indicatorSeriesRef.current
+      const activeIds = new Set(activeIndicators.map((item) => item.id))
+      const hasRsi = activeIndicators.some((item) => item.type === 'rsi')
 
-    const chartData = candlesticksToChartData(candlesticks)
-    const volumeData = candlesticksToVolumeData(candlesticks)
+      for (const [id, series] of seriesById) {
+        if (!activeIds.has(id)) {
+          chart.removeSeries(series)
+          seriesById.delete(id)
+        }
+      }
 
-    series.setData(chartData)
-    volumeSeries.setData(volumeData)
+      if (!hasRsi && chart.panes().length > RSI_PANE_INDEX) {
+        chart.removePane(RSI_PANE_INDEX)
+      }
 
-    if (chartData.length > 0 || volumeData.length > 0) {
-      requestAnimationFrame(() => {
-        chart.timeScale().fitContent()
+      if (hasRsi && chart.panes().length <= RSI_PANE_INDEX) {
+        chart.addPane()
+        const panes = chart.panes()
+        panes[0]?.setStretchFactor(MAIN_PANE_STRETCH)
+        panes[RSI_PANE_INDEX]?.setStretchFactor(RSI_PANE_STRETCH)
+      }
+
+      activeIndicators.filter(isOverlayIndicator).forEach((indicator) => {
+        const data = indicatorSeriesData(indicator, closeSeries)
+        let series = seriesById.get(indicator.id)
+
+        if (!series) {
+          series = chart.addSeries(LineSeries, {
+            color: indicator.color,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: true,
+          })
+          series.priceScale().applyOptions({
+            scaleMargins: {
+              top: 0.05,
+              bottom: 0.25,
+            },
+          })
+          seriesById.set(indicator.id, series)
+        } else {
+          series.applyOptions({ color: indicator.color })
+        }
+
+        series.setData(data)
       })
-    }
-  }, [])
+
+      activeIndicators
+        .filter((item): item is Extract<ChartIndicator, { type: 'rsi' }> => item.type === 'rsi')
+        .forEach((indicator) => {
+          const data = indicatorSeriesData(indicator, closeSeries)
+          let series = seriesById.get(indicator.id)
+
+          if (!series) {
+            series = chart.addSeries(
+              LineSeries,
+              {
+                color: indicator.color,
+                lineWidth: 2,
+                priceLineVisible: false,
+                lastValueVisible: true,
+              },
+              RSI_PANE_INDEX,
+            )
+            series.priceScale().applyOptions({
+              scaleMargins: {
+                top: 0.1,
+                bottom: 0.1,
+              },
+            })
+            seriesById.set(indicator.id, series)
+          } else {
+            series.applyOptions({ color: indicator.color })
+          }
+
+          series.setData(data)
+        })
+    },
+    [],
+  )
+
+  const applyChartData = useCallback(
+    (
+      mode: ChartTimeframe,
+      candlesticks: KalshiCandlestick[],
+      trades: KalshiTrade[],
+    ) => {
+      const candleSeries = candlestickSeriesRef.current
+      const lineSeries = lineSeriesRef.current
+      const volumeSeries = volumeSeriesRef.current
+      const chart = chartRef.current
+      if (!candleSeries || !lineSeries || !volumeSeries || !chart) return
+
+      if (isSingleTradeLineTimeframe(mode)) {
+        const lineData = tradesToLineData(trades)
+        const volumeData = tradesToLineVolumeData(trades)
+        lineSeries.setData(lineData)
+        candleSeries.setData([])
+        volumeSeries.setData(volumeData)
+        lineSeries.applyOptions({ visible: true })
+        candleSeries.applyOptions({ visible: false })
+
+        chart.applyOptions({
+          timeScale: { secondsVisible: true },
+        })
+
+        if (lineData.length > 0 || volumeData.length > 0) {
+          requestAnimationFrame(() => chart.timeScale().fitContent())
+        }
+      } else {
+        lineSeries.setData([])
+        lineSeries.applyOptions({ visible: false })
+        candleSeries.applyOptions({ visible: true })
+
+        if (isTickTimeframe(mode)) {
+          const { chartData, volumeData } = tradesToChartSeries(
+            trades,
+            ticksPerBar(mode),
+          )
+          candleSeries.setData(chartData)
+          volumeSeries.setData(volumeData)
+
+          chart.applyOptions({
+            timeScale: { secondsVisible: true },
+          })
+
+          if (chartData.length > 0 || volumeData.length > 0) {
+            requestAnimationFrame(() => chart.timeScale().fitContent())
+          }
+        } else {
+          const chartData = candlesticksToChartData(candlesticks)
+          const volumeData = candlesticksToVolumeData(candlesticks)
+          candleSeries.setData(chartData)
+          volumeSeries.setData(volumeData)
+
+          chart.applyOptions({
+            timeScale: { secondsVisible: false },
+          })
+
+          if (chartData.length > 0 || volumeData.length > 0) {
+            requestAnimationFrame(() => chart.timeScale().fitContent())
+          }
+        }
+      }
+
+      const closeSeries = getClosePriceSeries(mode, candlesticks, trades)
+      closeSeriesRef.current = closeSeries
+      syncIndicators(chart, indicators, closeSeries)
+    },
+    [indicators, syncIndicators],
+  )
 
   const loadMarketData = useCallback(
-    async (marketTicker: string, interval: PeriodInterval) => {
+    async (marketTicker: string, interval: ChartTimeframe) => {
       setLoadingMarket(true)
       setMarketError(null)
       setMarketMeta(null)
+      setLoadedCandlesticks([])
+      setLoadedTrades([])
 
       try {
-        const result = await getMarketCandlesticks(marketTicker, interval)
-        const { market, bounds, seriesTicker, candlesticks, startTs, endTs } =
-          result
+        const result = await getMarketChartData(marketTicker, interval)
 
-        loadedTickerRef.current = bounds.ticker
-        setMarketMeta(market)
-        setLoadedCandlesticks(candlesticks)
-        applyCandlesToChart(candlesticks)
+        loadedTickerRef.current = result.bounds.ticker
+        setMarketMeta(result.market)
 
-        console.log(`[KalshiView] Market ${bounds.ticker}`, {
-          series_ticker: seriesTicker,
-          period_interval: interval,
-          start_ts: startTs,
-          end_ts: endTs,
-        })
+        if (isTickChartData(result)) {
+          setLoadedTrades(result.trades)
+          applyChartData(result.timeframe, [], result.trades)
 
-        const chartBars = candlesticksToChartData(candlesticks)
-        console.log(`[KalshiView] Candlesticks ${bounds.ticker}`, {
-          raw_count: candlesticks.length,
-          chart_count: chartBars.length,
-          first: chartBars[0] ?? null,
-          last: chartBars.at(-1) ?? null,
-        })
+          const pointCount = isSingleTradeLineTimeframe(result.timeframe)
+            ? tradesToLineData(result.trades).length
+            : tradesToChartSeries(result.trades, ticksPerBar(result.timeframe))
+                .chartData.length
+          console.log(`[KalshiView] Trades ${result.bounds.ticker}`, {
+            timeframe: result.timeframe,
+            raw_count: result.trades.length,
+            chart_count: pointCount,
+            first:
+              (isSingleTradeLineTimeframe(result.timeframe)
+                ? tradesToLineData(result.trades)[0]
+                : tradesToChartSeries(
+                    result.trades,
+                    ticksPerBar(result.timeframe),
+                  ).chartData[0]) ?? null,
+            last:
+              (isSingleTradeLineTimeframe(result.timeframe)
+                ? tradesToLineData(result.trades).at(-1)
+                : tradesToChartSeries(
+                    result.trades,
+                    ticksPerBar(result.timeframe),
+                  ).chartData.at(-1)) ?? null,
+          })
 
-        if (chartBars.length === 0) {
-          setMarketError('No tradable price candles in this range.')
+          if (pointCount === 0) {
+            setMarketError('No trades found for this market.')
+          }
+        } else {
+          setLoadedCandlesticks(result.candlesticks)
+          applyChartData(result.timeframe, result.candlesticks, [])
+
+          console.log(`[KalshiView] Market ${result.bounds.ticker}`, {
+            series_ticker: result.seriesTicker,
+            timeframe: result.timeframe,
+            start_ts: result.startTs,
+            end_ts: result.endTs,
+          })
+
+          const chartBars = candlesticksToChartData(result.candlesticks)
+          console.log(`[KalshiView] Candlesticks ${result.bounds.ticker}`, {
+            raw_count: result.candlesticks.length,
+            chart_count: chartBars.length,
+            first: chartBars[0] ?? null,
+            last: chartBars.at(-1) ?? null,
+          })
+
+          if (chartBars.length === 0) {
+            setMarketError('No tradable price candles in this range.')
+          }
         }
       } catch (error) {
         const message =
@@ -109,7 +549,7 @@ export default function AnalysisPage() {
         setLoadingMarket(false)
       }
     },
-    [applyCandlesToChart],
+    [applyChartData],
   )
 
   async function handleMarketSubmit(event: FormEvent<HTMLFormElement>) {
@@ -117,16 +557,61 @@ export default function AnalysisPage() {
     const trimmed = ticker.trim()
     if (!trimmed) return
 
-    await loadMarketData(trimmed, periodInterval)
+    await loadMarketData(trimmed, timeframe)
   }
 
-  function handlePeriodChange(interval: PeriodInterval) {
-    if (interval === periodInterval) return
-    setPeriodInterval(interval)
+  function handleTimeframeChange(interval: ChartTimeframe) {
+    if (interval === timeframe) return
+    setTimeframe(interval)
     const loaded = loadedTickerRef.current
     if (!loaded || loadingMarket) return
     void loadMarketData(loaded, interval)
   }
+
+  function handleAddIndicatorSelect(value: string) {
+    if (value === 'sma' || value === 'ema' || value === 'rsi') {
+      setPeriodDraft(defaultPeriodForIndicator(value))
+      setPeriodError(null)
+      setPendingIndicator(value)
+    }
+  }
+
+  function closeIndicatorModal() {
+    setPendingIndicator(null)
+    setPeriodError(null)
+  }
+
+  function handleIndicatorSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!pendingIndicator) return
+
+    const period = Number.parseInt(periodDraft, 10)
+    if (!Number.isFinite(period) || period < 1) {
+      setPeriodError('Enter a whole number of at least 1.')
+      return
+    }
+
+    setIndicators((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        type: pendingIndicator,
+        period,
+        color: nextIndicatorColor(current),
+      },
+    ])
+    closeIndicatorModal()
+  }
+
+  function removeIndicator(id: string) {
+    setIndicators((current) => current.filter((item) => item.id !== id))
+  }
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    syncIndicators(chart, indicators, closeSeriesRef.current)
+  }, [indicators, syncIndicators])
 
   useEffect(() => {
     const container = chartContainerRef.current
@@ -166,6 +651,19 @@ export default function AnalysisPage() {
       },
     })
 
+    const lineSeries = chart.addSeries(LineSeries, {
+      color: '#707580',
+      lineWidth: 2,
+      visible: false,
+    })
+
+    lineSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.05,
+        bottom: 0.25,
+      },
+    })
+
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
@@ -180,6 +678,7 @@ export default function AnalysisPage() {
 
     chartRef.current = chart
     candlestickSeriesRef.current = candlestickSeries
+    lineSeriesRef.current = lineSeries
     volumeSeriesRef.current = volumeSeries
 
     const resizeObserver = new ResizeObserver((entries) => {
@@ -193,19 +692,22 @@ export default function AnalysisPage() {
       chart.remove()
       chartRef.current = null
       candlestickSeriesRef.current = null
+      lineSeriesRef.current = null
       volumeSeriesRef.current = null
+      indicatorSeriesRef.current.clear()
+      closeSeriesRef.current = []
     }
   }, [])
 
   useEffect(() => {
-    if (loadedCandlesticks.length === 0) return
+    if (loadedCandlesticks.length === 0 && loadedTrades.length === 0) return
     const chart = chartRef.current
     if (!chart) return
 
     requestAnimationFrame(() => {
       chart.timeScale().fitContent()
     })
-  }, [isFullscreen, loadedCandlesticks])
+  }, [isFullscreen, loadedCandlesticks, loadedTrades])
 
   return (
     <div className={`app ${isFullscreen ? 'app--fullscreen' : 'app--dashboard'}`}>
@@ -237,16 +739,14 @@ export default function AnalysisPage() {
                 spellCheck={false}
                 disabled={loadingMarket}
               />
-              <nav className="period-tabs" aria-label="Candlestick interval">
-                {PERIOD_OPTIONS.map((option) => (
+              <nav className="period-tabs" aria-label="Chart timeframe">
+                {TIMEFRAME_OPTIONS.map((option) => (
                   <button
-                    key={option.interval}
+                    key={String(option.interval)}
                     type="button"
-                    className={
-                      periodInterval === option.interval ? 'active' : undefined
-                    }
+                    className={timeframe === option.interval ? 'active' : undefined}
                     disabled={loadingMarket}
-                    onClick={() => handlePeriodChange(option.interval)}
+                    onClick={() => handleTimeframeChange(option.interval)}
                   >
                     {option.label}
                   </button>
@@ -266,6 +766,15 @@ export default function AnalysisPage() {
               </p>
             )}
           </header>
+          {isFullscreen && (
+            <div className="chart-indicators-bar">
+              <IndicatorsPanel
+                indicators={indicators}
+                onAddSelect={handleAddIndicatorSelect}
+                onRemove={removeIndicator}
+              />
+            </div>
+          )}
           <div ref={chartContainerRef} className="chart-container" />
         </section>
 
@@ -311,16 +820,36 @@ export default function AnalysisPage() {
             </aside>
 
             <section className="bottom-panel">
-              <header className="panel-header">
-                <span className="panel-title">[To Be Populated]</span>
+              <header className="panel-header panel-header--tabs">
+                <nav className="panel-tabs" aria-label="Chart tools">
+                  <button type="button" className="active">
+                    Indicators
+                  </button>
+                </nav>
               </header>
-              <div className="panel-body panel-body--placeholder">
-                <p className="panel-empty">[To Be Populated]</p>
+              <div className="panel-body panel-body--scroll">
+                <IndicatorsPanel
+                  indicators={indicators}
+                  onAddSelect={handleAddIndicatorSelect}
+                  onRemove={removeIndicator}
+                />
               </div>
             </section>
           </>
         )}
       </div>
+
+      {pendingIndicator && (
+        <IndicatorConfigModal
+          titleId={indicatorModalTitleId}
+          indicator={pendingIndicator}
+          draft={periodDraft}
+          error={periodError}
+          onDraftChange={setPeriodDraft}
+          onSubmit={handleIndicatorSubmit}
+          onClose={closeIndicatorModal}
+        />
+      )}
     </div>
   )
 }

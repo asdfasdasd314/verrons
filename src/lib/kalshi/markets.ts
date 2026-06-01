@@ -3,10 +3,15 @@ import {
   seriesTickerFromMarket,
 } from './candlesticks'
 import { kalshiGet } from './client'
+import { fetchLastMarketTrades } from './trades'
+import { isTickTimeframe } from './timeframes'
 import type {
+  ChartTimeframe,
   GetMarketResponse,
   KalshiMarket,
   MarketCandlesticks,
+  MarketChartData,
+  MarketTickTrades,
   MarketUnixBounds,
   PeriodInterval,
 } from './types'
@@ -38,6 +43,10 @@ export function marketToBounds(market: KalshiMarket): MarketUnixBounds {
   }
 }
 
+export function isTickChartData(data: MarketChartData): data is MarketTickTrades {
+  return isTickTimeframe(data.timeframe)
+}
+
 export async function fetchMarket(ticker: string): Promise<GetMarketResponse> {
   const encoded = encodeURIComponent(ticker.trim())
   return kalshiGet<GetMarketResponse>(`/markets/${encoded}`)
@@ -50,12 +59,23 @@ export async function getMarketUnixBounds(
   return marketToBounds(market)
 }
 
-export async function getMarketCandlesticks(
+export async function getMarketChartData(
   ticker: string,
-  periodInterval: PeriodInterval,
-): Promise<MarketCandlesticks> {
+  timeframe: ChartTimeframe,
+): Promise<MarketChartData> {
   const { market } = await fetchMarket(ticker)
   const bounds = marketToBounds(market)
+
+  if (isTickTimeframe(timeframe)) {
+    const trades = await fetchLastMarketTrades(bounds.ticker)
+    return {
+      market,
+      bounds,
+      timeframe,
+      trades,
+    }
+  }
+
   const seriesTicker = seriesTickerFromMarket(bounds.ticker)
   const endTs = effectiveCandlestickEndUnix(bounds.closeUnix)
 
@@ -64,16 +84,28 @@ export async function getMarketCandlesticks(
     ticker: bounds.ticker,
     createdUnix: bounds.createdUnix,
     endTs,
-    periodInterval,
+    periodInterval: timeframe,
   })
 
   return {
     market,
     bounds,
     seriesTicker,
-    periodInterval: result.periodInterval,
+    timeframe,
     startTs: result.startTs,
     endTs: result.endTs,
     candlesticks: result.candlesticks,
   }
+}
+
+/** @deprecated use getMarketChartData */
+export async function getMarketCandlesticks(
+  ticker: string,
+  periodInterval: PeriodInterval,
+): Promise<MarketCandlesticks> {
+  const data = await getMarketChartData(ticker, periodInterval)
+  if (isTickChartData(data)) {
+    throw new Error('Expected candlestick timeframe')
+  }
+  return data
 }

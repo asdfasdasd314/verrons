@@ -4,22 +4,32 @@ import type {
   UTCTimestamp,
 } from 'lightweight-charts'
 import { kalshiGet } from './client'
+import { VOLUME_DOWN_COLOR, VOLUME_UP_COLOR } from './chartColors'
 import type {
   GetMarketCandlesticksResponse,
   KalshiCandlestick,
   PeriodInterval,
+  ChartTimeframe,
 } from './types'
+
+export { VOLUME_DOWN_COLOR, VOLUME_UP_COLOR } from './chartColors'
 
 export const LAST_N_CANDLES = 5000
 
-export const PERIOD_OPTIONS: { label: string; interval: PeriodInterval }[] = [
+export const TIMEFRAME_OPTIONS: { label: string; interval: ChartTimeframe }[] = [
+  { label: '1T', interval: 'tick' },
+  { label: '5T', interval: 'tick-5' },
+  { label: '10T', interval: 'tick-10' },
   { label: '1m', interval: 1 },
   { label: '1h', interval: 60 },
   { label: '1d', interval: 1440 },
 ]
 
-export const VOLUME_UP_COLOR = '#26a69a'
-export const VOLUME_DOWN_COLOR = '#ef5350'
+/** @deprecated use TIMEFRAME_OPTIONS */
+export const PERIOD_OPTIONS = TIMEFRAME_OPTIONS.filter(
+  (o): o is { label: string; interval: PeriodInterval } =>
+    typeof o.interval === 'number',
+)
 
 function parseDollar(value: string | null | undefined): number | null {
   if (value == null || value === '') return null
