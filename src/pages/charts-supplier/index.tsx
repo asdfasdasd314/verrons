@@ -6,7 +6,7 @@ export default function ChartsSupplierPage() {
     <main className="charts-supplier">
       <h1>Thanks TradingView for the charting utilities</h1>
       <p className="charts-supplier-lead">
-        KalshiView uses{' '}
+        Verrons uses{' '}
         <a
           href="https://www.tradingview.com/lightweight-charts/"
           target="_blank"
@@ -29,7 +29,7 @@ export default function ChartsSupplierPage() {
         </a>
       </p>
       <Link className="charts-supplier-back" to="/">
-        Back to KalshiView
+        Back to Verrons
       </Link>
     </main>
   )

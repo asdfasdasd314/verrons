@@ -92,35 +92,26 @@
   min-width: 0;
 }
 
-.period-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.period-tabs button {
+.market-form-select {
+  height: 26px;
+  padding: 0 8px;
   font: inherit;
   font-size: 12px;
-  color: #8b90a0;
+  color: #e8eaef;
   background: #0d0e12;
   border: 1px solid #2e303a;
-  padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
-.period-tabs button:hover:not(:disabled) {
-  color: #c5c8d4;
-  border-color: #4a4f5c;
-}
-
-.period-tabs button.active {
-  color: #e8eaef;
-  background: #1f222c;
+.market-form-select:focus {
+  outline: none;
   border-color: #5b8def;
 }
 
-.period-tabs button:disabled {
-  opacity: 0.5;
+.market-form-select:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

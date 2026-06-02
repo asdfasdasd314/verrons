@@ -18,7 +18,6 @@ import {
 import {
   candlesticksToChartData,
   candlesticksToVolumeData,
-  TIMEFRAME_OPTIONS,
   VOLUME_DOWN_COLOR,
   VOLUME_UP_COLOR,
 } from '../../lib/kalshi/candlesticks'
@@ -33,6 +32,9 @@ import { getMarketChartData, isTickChartData } from '../../lib/kalshi/markets'
 import {
   isSingleTradeLineTimeframe,
   isTickTimeframe,
+  TIMEFRAME_GROUPS,
+  timeframeFromSelectValue,
+  timeframeToSelectValue,
   ticksPerBar,
 } from '../../lib/kalshi/timeframes'
 import {
@@ -494,7 +496,7 @@ export default function AnalysisPage() {
             ? tradesToLineData(result.trades).length
             : tradesToChartSeries(result.trades, ticksPerBar(result.timeframe))
                 .chartData.length
-          console.log(`[KalshiView] Trades ${result.bounds.ticker}`, {
+          console.log(`[Verrons] Trades ${result.bounds.ticker}`, {
             timeframe: result.timeframe,
             raw_count: result.trades.length,
             chart_count: pointCount,
@@ -521,7 +523,7 @@ export default function AnalysisPage() {
           setLoadedCandlesticks(result.candlesticks)
           applyChartData(result.timeframe, result.candlesticks, [])
 
-          console.log(`[KalshiView] Market ${result.bounds.ticker}`, {
+          console.log(`[Verrons] Market ${result.bounds.ticker}`, {
             series_ticker: result.seriesTicker,
             timeframe: result.timeframe,
             start_ts: result.startTs,
@@ -529,7 +531,7 @@ export default function AnalysisPage() {
           })
 
           const chartBars = candlesticksToChartData(result.candlesticks)
-          console.log(`[KalshiView] Candlesticks ${result.bounds.ticker}`, {
+          console.log(`[Verrons] Candlesticks ${result.bounds.ticker}`, {
             raw_count: result.candlesticks.length,
             chart_count: chartBars.length,
             first: chartBars[0] ?? null,
@@ -544,7 +546,7 @@ export default function AnalysisPage() {
         const message =
           error instanceof Error ? error.message : 'Failed to load market'
         setMarketError(message)
-        console.error('[KalshiView] Market fetch failed:', error)
+        console.error('[Verrons] Market fetch failed:', error)
       } finally {
         setLoadingMarket(false)
       }
@@ -739,19 +741,32 @@ export default function AnalysisPage() {
                 spellCheck={false}
                 disabled={loadingMarket}
               />
-              <nav className="period-tabs" aria-label="Chart timeframe">
-                {TIMEFRAME_OPTIONS.map((option) => (
-                  <button
-                    key={String(option.interval)}
-                    type="button"
-                    className={timeframe === option.interval ? 'active' : undefined}
-                    disabled={loadingMarket}
-                    onClick={() => handleTimeframeChange(option.interval)}
-                  >
-                    {option.label}
-                  </button>
+              <label className="market-form-label" htmlFor="chart-timeframe">
+                Timeframe
+              </label>
+              <select
+                id="chart-timeframe"
+                className="market-form-select"
+                value={timeframeToSelectValue(timeframe)}
+                disabled={loadingMarket}
+                onChange={(event) => {
+                  const interval = timeframeFromSelectValue(event.target.value)
+                  if (interval) handleTimeframeChange(interval)
+                }}
+              >
+                {TIMEFRAME_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map((option) => (
+                      <option
+                        key={timeframeToSelectValue(option.interval)}
+                        value={timeframeToSelectValue(option.interval)}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
-              </nav>
+              </select>
               <button
                 className="market-form-submit"
                 type="submit"

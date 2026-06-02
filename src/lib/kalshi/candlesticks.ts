@@ -9,21 +9,14 @@ import type {
   GetMarketCandlesticksResponse,
   KalshiCandlestick,
   PeriodInterval,
-  ChartTimeframe,
 } from './types'
+import { TIMEFRAME_OPTIONS } from './timeframes'
 
 export { VOLUME_DOWN_COLOR, VOLUME_UP_COLOR } from './chartColors'
 
-export const LAST_N_CANDLES = 5000
+export { TIMEFRAME_GROUPS, TIMEFRAME_OPTIONS } from './timeframes'
 
-export const TIMEFRAME_OPTIONS: { label: string; interval: ChartTimeframe }[] = [
-  { label: '1T', interval: 'tick' },
-  { label: '5T', interval: 'tick-5' },
-  { label: '10T', interval: 'tick-10' },
-  { label: '1m', interval: 1 },
-  { label: '1h', interval: 60 },
-  { label: '1d', interval: 1440 },
-]
+export const LAST_N_CANDLES = 5000
 
 /** @deprecated use TIMEFRAME_OPTIONS */
 export const PERIOD_OPTIONS = TIMEFRAME_OPTIONS.filter(
