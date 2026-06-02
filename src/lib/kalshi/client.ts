@@ -1,8 +1,7 @@
 import { acquireKalshiRateLimit } from './rateLimit'
 
-export const KALSHI_API_BASE = import.meta.env.DEV
-  ? '/kalshi-api/trade-api/v2'
-  : 'https://external-api.kalshi.com/trade-api/v2'
+/** Same-origin proxy in dev (Vite) and production (Vercel rewrites). */
+export const KALSHI_API_BASE = '/kalshi-api/trade-api/v2'
 
 export async function kalshiGet<T>(path: string): Promise<T> {
   await acquireKalshiRateLimit()

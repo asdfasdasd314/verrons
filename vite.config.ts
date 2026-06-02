@@ -13,4 +13,13 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    proxy: {
+      '/kalshi-api': {
+        target: 'https://external-api.kalshi.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/kalshi-api/, ''),
+      },
+    },
+  },
 })

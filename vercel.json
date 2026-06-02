@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/kalshi-api/:path*",
+      "destination": "https://external-api.kalshi.com/:path*"
+    }
+  ]
+}
