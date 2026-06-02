@@ -18,6 +18,7 @@ import {
 import {
   candlesticksToChartData,
   candlesticksToVolumeData,
+  chartDataToLineData,
   VOLUME_DOWN_COLOR,
   VOLUME_UP_COLOR,
 } from '../../lib/kalshi/candlesticks'
@@ -56,6 +57,8 @@ const MAIN_PANE_STRETCH = 72
 const RSI_PANE_STRETCH = 24
 
 type PendingIndicatorType = 'sma' | 'ema' | 'rsi'
+
+type ChartViewMode = 'candles' | 'line'
 
 type ChartIndicator =
   | { id: string; type: 'sma'; period: number; color: string }
@@ -318,7 +321,11 @@ export default function AnalysisPage() {
   )
   const [loadedTrades, setLoadedTrades] = useState<KalshiTrade[]>([])
   const [timeframe, setTimeframe] = useState<ChartTimeframe>(1)
+  const [chartView, setChartView] = useState<ChartViewMode>('candles')
   const loadedTickerRef = useRef<string | null>(null)
+
+  const candlesViewDisabled = isSingleTradeLineTimeframe(timeframe)
+  const effectiveChartView: ChartViewMode = candlesViewDisabled ? 'line' : chartView
 
   const syncIndicators = useCallback(
     (chart: IChartApi, activeIndicators: ChartIndicator[], closeSeries: PricePoint[]) => {
@@ -415,22 +422,33 @@ export default function AnalysisPage() {
       const chart = chartRef.current
       if (!candleSeries || !lineSeries || !volumeSeries || !chart) return
 
-      if (isSingleTradeLineTimeframe(mode)) {
-        const lineData = tradesToLineData(trades)
-        const volumeData = tradesToLineVolumeData(trades)
+      const useLine =
+        effectiveChartView === 'line' || isSingleTradeLineTimeframe(mode)
+      const secondsVisible =
+        isSingleTradeLineTimeframe(mode) || isTickTimeframe(mode)
+
+      if (useLine) {
+        let lineData
+        let volumeData
+
+        if (isSingleTradeLineTimeframe(mode)) {
+          lineData = tradesToLineData(trades)
+          volumeData = tradesToLineVolumeData(trades)
+        } else if (isTickTimeframe(mode)) {
+          const series = tradesToChartSeries(trades, ticksPerBar(mode))
+          lineData = chartDataToLineData(series.chartData)
+          volumeData = series.volumeData
+        } else {
+          const chartData = candlesticksToChartData(candlesticks)
+          lineData = chartDataToLineData(chartData)
+          volumeData = candlesticksToVolumeData(candlesticks)
+        }
+
         lineSeries.setData(lineData)
         candleSeries.setData([])
         volumeSeries.setData(volumeData)
         lineSeries.applyOptions({ visible: true })
         candleSeries.applyOptions({ visible: false })
-
-        chart.applyOptions({
-          timeScale: { secondsVisible: true },
-        })
-
-        if (lineData.length > 0 || volumeData.length > 0) {
-          requestAnimationFrame(() => chart.timeScale().fitContent())
-        }
       } else {
         lineSeries.setData([])
         lineSeries.applyOptions({ visible: false })
@@ -443,35 +461,30 @@ export default function AnalysisPage() {
           )
           candleSeries.setData(chartData)
           volumeSeries.setData(volumeData)
-
-          chart.applyOptions({
-            timeScale: { secondsVisible: true },
-          })
-
-          if (chartData.length > 0 || volumeData.length > 0) {
-            requestAnimationFrame(() => chart.timeScale().fitContent())
-          }
         } else {
           const chartData = candlesticksToChartData(candlesticks)
           const volumeData = candlesticksToVolumeData(candlesticks)
           candleSeries.setData(chartData)
           volumeSeries.setData(volumeData)
-
-          chart.applyOptions({
-            timeScale: { secondsVisible: false },
-          })
-
-          if (chartData.length > 0 || volumeData.length > 0) {
-            requestAnimationFrame(() => chart.timeScale().fitContent())
-          }
         }
+      }
+
+      chart.applyOptions({
+        timeScale: { secondsVisible },
+      })
+
+      const hasPrimaryData =
+        (useLine ? lineSeries.data().length : candleSeries.data().length) > 0 ||
+        volumeSeries.data().length > 0
+      if (hasPrimaryData) {
+        requestAnimationFrame(() => chart.timeScale().fitContent())
       }
 
       const closeSeries = getClosePriceSeries(mode, candlesticks, trades)
       closeSeriesRef.current = closeSeries
       syncIndicators(chart, indicators, closeSeries)
     },
-    [indicators, syncIndicators],
+    [effectiveChartView, indicators, syncIndicators],
   )
 
   const loadMarketData = useCallback(
@@ -610,6 +623,24 @@ export default function AnalysisPage() {
   }
 
   useEffect(() => {
+    if (candlesViewDisabled) {
+      setChartView('line')
+    }
+  }, [candlesViewDisabled])
+
+  useEffect(() => {
+    if (loadedCandlesticks.length === 0 && loadedTrades.length === 0) return
+    applyChartData(timeframe, loadedCandlesticks, loadedTrades)
+  }, [
+    chartView,
+    effectiveChartView,
+    timeframe,
+    loadedCandlesticks,
+    loadedTrades,
+    applyChartData,
+  ])
+
+  useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
     syncIndicators(chart, indicators, closeSeriesRef.current)
@@ -713,16 +744,6 @@ export default function AnalysisPage() {
 
   return (
     <div className={`app ${isFullscreen ? 'app--fullscreen' : 'app--dashboard'}`}>
-      <button
-        type="button"
-        className="layout-toggle"
-        onClick={() => setIsFullscreen((value) => !value)}
-        aria-label={isFullscreen ? 'Show dashboard layout' : 'Show fullscreen chart'}
-        title={isFullscreen ? 'Dashboard layout' : 'Fullscreen chart'}
-      >
-        <LayoutToggleIcon />
-      </button>
-
       <div className="workspace">
         <section className="chart-panel">
           <header className="panel-header panel-header--chart">
@@ -774,6 +795,44 @@ export default function AnalysisPage() {
               >
                 {loadingMarket ? 'Loading…' : 'Load'}
               </button>
+              <div
+                className="chart-view-toggle"
+                role="group"
+                aria-label="Chart style"
+              >
+                <button
+                  type="button"
+                  className={
+                    effectiveChartView === 'candles'
+                      ? 'chart-view-toggle__option chart-view-toggle__option--active'
+                      : 'chart-view-toggle__option'
+                  }
+                  disabled={loadingMarket || candlesViewDisabled}
+                  aria-pressed={effectiveChartView === 'candles'}
+                  title={
+                    candlesViewDisabled
+                      ? 'Candles are not available on 1 Tick'
+                      : 'Candlestick chart'
+                  }
+                  onClick={() => setChartView('candles')}
+                >
+                  Candles
+                </button>
+                <button
+                  type="button"
+                  className={
+                    effectiveChartView === 'line'
+                      ? 'chart-view-toggle__option chart-view-toggle__option--active'
+                      : 'chart-view-toggle__option'
+                  }
+                  disabled={loadingMarket}
+                  aria-pressed={effectiveChartView === 'line'}
+                  title="Line chart (close)"
+                  onClick={() => setChartView('line')}
+                >
+                  Line
+                </button>
+              </div>
             </form>
             {marketError && (
               <p className="market-form-error" role="alert">
@@ -790,7 +849,20 @@ export default function AnalysisPage() {
               />
             </div>
           )}
-          <div ref={chartContainerRef} className="chart-container" />
+          <div className="chart-stage">
+            <button
+              type="button"
+              className="layout-toggle"
+              onClick={() => setIsFullscreen((value) => !value)}
+              aria-label={
+                isFullscreen ? 'Show dashboard layout' : 'Show fullscreen chart'
+              }
+              title={isFullscreen ? 'Dashboard layout' : 'Fullscreen chart'}
+            >
+              <LayoutToggleIcon />
+            </button>
+            <div ref={chartContainerRef} className="chart-container" />
+          </div>
         </section>
 
         {!isFullscreen && (

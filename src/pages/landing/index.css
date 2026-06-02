@@ -15,6 +15,20 @@
 }
 
 .landing-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+}
+
+.landing-logo-image {
+  display: block;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.landing-logo-text {
   font-size: 1.1rem;
   font-weight: 600;
   color: #e8eaef;

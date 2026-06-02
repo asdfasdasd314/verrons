@@ -5,7 +5,16 @@ export default function LandingPage() {
   return (
     <div className="landing">
       <header className="landing-header">
-        <span className="landing-logo">Verrons</span>
+      <Link className="landing-logo" to="/">
+        <img
+          className="landing-logo-image"
+          src="/verrons-logo.png"
+          alt="Verrons"
+          width={36}
+          height={36}
+        />
+        <span className="landing-logo-text">Verrons</span>
+      </Link>
         <nav className="landing-nav">
           <Link to="/analysis">Open workspace</Link>
           <Link to="/charts-supplier">Charts</Link>

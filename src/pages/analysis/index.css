@@ -115,6 +115,46 @@
   cursor: not-allowed;
 }
 
+.chart-view-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid #2e303a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.chart-view-toggle__option {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: #8b90a0;
+  background: #0d0e12;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.chart-view-toggle__option:hover:not(:disabled) {
+  color: #c5c8d4;
+}
+
+.chart-view-toggle__option--active {
+  color: #e8eaef;
+  background: #1f222c;
+}
+
+.chart-view-toggle__option:disabled {
+  opacity: 0.45;
+  color: #5c6070;
+  cursor: not-allowed;
+}
+
+.chart-view-toggle__option:focus-visible {
+  outline: 2px solid #5b8def;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
 .market-form-label {
   font-size: 12px;
   color: #8b90a0;
@@ -363,10 +403,16 @@
   border-color: #5b8def;
 }
 
-.chart-container {
+.chart-stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   width: 100%;
+}
+
+.chart-container {
+  width: 100%;
+  height: 100%;
 }
 
 .panel-body {

@@ -1,6 +1,7 @@
 import type {
   CandlestickData,
   HistogramData,
+  LineData,
   UTCTimestamp,
 } from 'lightweight-charts'
 import { kalshiGet } from './client'
@@ -83,6 +84,13 @@ export function candlesticksToChartData(
   }
 
   return [...byTime.values()].sort((a, b) => (a.time as number) - (b.time as number))
+}
+
+/** Closing price of each bar as a line series. */
+export function chartDataToLineData(
+  bars: CandlestickData<UTCTimestamp>[],
+): LineData<UTCTimestamp>[] {
+  return bars.map(({ time, close }) => ({ time, value: close }))
 }
 
 function parseVolume(value: string | null | undefined): number | null {
