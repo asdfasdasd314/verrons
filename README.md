@@ -1,3 +1,3 @@
 # Verrons
 
-Verrons is a data analysis platform tailored towards prediction market traders. In my experience, the Kalshi and Polymarket platforms display their data horribly and any advanced analysis necessarily must be done using the APIs. Unfortunately, the APIs are still hard to use and understand, so Verrons is the solution that is based on the ergonomics of TradingView's lightweight-charts and my quantitative experience with these markets.
+Verrons is the first platform to pull real-time from prediction markets to make informed decisions about the future. For example, by pulling probabilities from a gas prices market for tomorrow, we can estimate the confidence of the market that users should wait to fill up their tanks. Or we can pull Rotten Tomatoes markets to anticipate the best new movie releases.

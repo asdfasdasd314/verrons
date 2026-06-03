@@ -1,111 +1,105 @@
-import {
-  fetchLastMarketCandlesticks,
-  seriesTickerFromMarket,
-} from './candlesticks'
 import { kalshiGet } from './client'
-import { fetchLastMarketTrades } from './trades'
-import { isTickTimeframe } from './timeframes'
-import type {
-  ChartTimeframe,
-  GetMarketResponse,
-  KalshiMarket,
-  MarketCandlesticks,
-  MarketChartData,
-  MarketTickTrades,
-  MarketUnixBounds,
-  PeriodInterval,
-} from './types'
+import { activeGasEvent, type ActiveGasEvent } from './gasEvent'
+import { parseMovieTitle } from './movieTitle'
+import type { EventMarketGroup, GetMarketsResponse, KalshiMarket } from './types'
 
-export function isoToUnixSeconds(iso: string): number {
-  const ms = Date.parse(iso)
-  if (Number.isNaN(ms)) {
-    throw new Error(`Invalid ISO timestamp: ${iso}`)
-  }
-  return Math.floor(ms / 1000)
-}
+const KXRT_SERIES_TICKER = 'KXRT'
 
-export function nowUnixSeconds(): number {
-  return Math.floor(Date.now() / 1000)
-}
+export async function fetchMarketsForEvent(eventTicker: string): Promise<KalshiMarket[]> {
+  const markets: KalshiMarket[] = []
+  let cursor = ''
 
-/** Candlestick fetches cannot extend past the present for open markets. */
-export function effectiveCandlestickEndUnix(closeUnix: number): number {
-  return Math.min(closeUnix, nowUnixSeconds())
-}
-
-export function marketToBounds(market: KalshiMarket): MarketUnixBounds {
-  return {
-    ticker: market.ticker,
-    createdTime: market.created_time,
-    closeTime: market.close_time,
-    createdUnix: isoToUnixSeconds(market.created_time),
-    closeUnix: isoToUnixSeconds(market.close_time),
-  }
-}
-
-export function isTickChartData(data: MarketChartData): data is MarketTickTrades {
-  return isTickTimeframe(data.timeframe)
-}
-
-export async function fetchMarket(ticker: string): Promise<GetMarketResponse> {
-  const encoded = encodeURIComponent(ticker.trim())
-  return kalshiGet<GetMarketResponse>(`/markets/${encoded}`)
-}
-
-export async function getMarketUnixBounds(
-  ticker: string,
-): Promise<MarketUnixBounds> {
-  const { market } = await fetchMarket(ticker)
-  return marketToBounds(market)
-}
-
-export async function getMarketChartData(
-  ticker: string,
-  timeframe: ChartTimeframe,
-): Promise<MarketChartData> {
-  const { market } = await fetchMarket(ticker)
-  const bounds = marketToBounds(market)
-
-  if (isTickTimeframe(timeframe)) {
-    const trades = await fetchLastMarketTrades(bounds.ticker)
-    return {
-      market,
-      bounds,
-      timeframe,
-      trades,
+  do {
+    const params = new URLSearchParams({
+      limit: '1000',
+      event_ticker: eventTicker,
+    })
+    if (cursor) {
+      params.set('cursor', cursor)
     }
-  }
 
-  const seriesTicker = seriesTickerFromMarket(bounds.ticker)
-  const endTs = effectiveCandlestickEndUnix(bounds.closeUnix)
+    const data = await kalshiGet<GetMarketsResponse>(`/markets?${params}`)
+    markets.push(...data.markets)
+    cursor = data.cursor
+  } while (cursor)
 
-  const result = await fetchLastMarketCandlesticks({
-    seriesTicker,
-    ticker: bounds.ticker,
-    createdUnix: bounds.createdUnix,
-    endTs,
-    periodInterval: timeframe,
-  })
-
-  return {
-    market,
-    bounds,
-    seriesTicker,
-    timeframe,
-    startTs: result.startTs,
-    endTs: result.endTs,
-    candlesticks: result.candlesticks,
-  }
+  return markets
 }
 
-/** @deprecated use getMarketChartData */
-export async function getMarketCandlesticks(
-  ticker: string,
-  periodInterval: PeriodInterval,
-): Promise<MarketCandlesticks> {
-  const data = await getMarketChartData(ticker, periodInterval)
-  if (isTickChartData(data)) {
-    throw new Error('Expected candlestick timeframe')
+export async function fetchActiveGasMarkets(from: Date = new Date()): Promise<{
+  event: ActiveGasEvent
+  markets: KalshiMarket[]
+}> {
+  const event = activeGasEvent(from)
+  const markets = await fetchMarketsForEvent(event.eventTicker)
+  return { event, markets }
+}
+
+/** @deprecated Use fetchActiveGasMarkets instead. */
+export async function fetchTomorrowGasMarkets(from: Date = new Date()): Promise<{
+  eventTicker: string
+  markets: KalshiMarket[]
+}> {
+  const { event, markets } = await fetchActiveGasMarkets(from)
+  return { eventTicker: event.eventTicker, markets }
+}
+
+export async function fetchOpenKxrtMarkets(): Promise<KalshiMarket[]> {
+  const markets: KalshiMarket[] = []
+  let cursor = ''
+
+  do {
+    const params = new URLSearchParams({
+      limit: '1000',
+      series_ticker: KXRT_SERIES_TICKER,
+      status: 'open',
+    })
+    if (cursor) {
+      params.set('cursor', cursor)
+    }
+
+    const data = await kalshiGet<GetMarketsResponse>(`/markets?${params}`)
+    markets.push(...data.markets)
+    cursor = data.cursor
+  } while (cursor)
+
+  return markets
+}
+
+export function groupMarketsByEvent(markets: KalshiMarket[]): EventMarketGroup[] {
+  const groups = new Map<string, EventMarketGroup>()
+
+  for (const market of markets) {
+    const existing = groups.get(market.event_ticker)
+    if (existing) {
+      existing.marketCount += 1
+      continue
+    }
+
+    groups.set(market.event_ticker, {
+      event_ticker: market.event_ticker,
+      movieTitle: parseMovieTitle(market.title ?? market.event_ticker),
+      marketCount: 1,
+    })
   }
-  return data
+
+  return Array.from(groups.values()).sort((a, b) =>
+    a.movieTitle.localeCompare(b.movieTitle),
+  )
+}
+
+export function logEventMarketGroups(groups: EventMarketGroup[]): void {
+  for (const group of groups) {
+    console.log(
+      `[KXRT] ${group.movieTitle} — ${group.marketCount} markets`,
+    )
+  }
+  console.log(`[KXRT] ${groups.length} events, ${groups.reduce((n, g) => n + g.marketCount, 0)} markets total`)
+}
+
+export async function fetchOpenKxrtEventGroups(): Promise<EventMarketGroup[]> {
+  const markets = await fetchOpenKxrtMarkets()
+  const groups = groupMarketsByEvent(markets)
+  logEventMarketGroups(groups)
+  return groups
 }
