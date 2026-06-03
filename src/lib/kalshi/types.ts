@@ -1,99 +1,44 @@
 export type KalshiMarket = {
   ticker: string
-  created_time: string
-  close_time: string
+  event_ticker: string
   title?: string
-  event_ticker?: string
-  open_interest_fp?: string
-  volume_fp?: string
-  volume_24h_fp?: string
-  rules_primary?: string
-  rules_secondary?: string
-  status?: string
-  subtitle?: string
+  yes_sub_title: string
+  floor_strike: number | null
+  yes_bid_dollars: string
+  yes_ask_dollars: string
+  last_price_dollars: string
 }
 
-export type GetMarketResponse = {
-  market: KalshiMarket
-}
-
-export type MarketUnixBounds = {
-  ticker: string
-  createdTime: string
-  closeTime: string
-  createdUnix: number
-  closeUnix: number
-}
-
-export type KalshiBidAskDistribution = {
-  open_dollars: string
-  low_dollars: string
-  high_dollars: string
-  close_dollars: string
-}
-
-export type KalshiPriceDistribution = {
-  open_dollars?: string | null
-  low_dollars?: string | null
-  high_dollars?: string | null
-  close_dollars?: string | null
-  mean_dollars?: string | null
-  previous_dollars?: string | null
-  min_dollars?: string | null
-  max_dollars?: string | null
-}
-
-export type KalshiCandlestick = {
-  end_period_ts: number
-  yes_bid: KalshiBidAskDistribution
-  yes_ask: KalshiBidAskDistribution
-  price: KalshiPriceDistribution
-  volume_fp: string
-  open_interest_fp: string
-}
-
-export type GetMarketCandlesticksResponse = {
-  ticker: string
-  candlesticks: KalshiCandlestick[]
-}
-
-export type PeriodInterval = 1 | 60 | 1440
-
-export type TickTimeframe = 'tick' | 'tick-5' | 'tick-10'
-
-export type ChartTimeframe = TickTimeframe | PeriodInterval
-
-export type KalshiTrade = {
-  trade_id: string
-  ticker: string
-  count_fp: string
-  yes_price_dollars: string
-  no_price_dollars: string
-  taker_side?: 'yes' | 'no'
-  taker_outcome_side?: 'yes' | 'no'
-  created_time: string
-}
-
-export type GetTradesResponse = {
-  trades: KalshiTrade[]
+export type GetMarketsResponse = {
+  markets: KalshiMarket[]
   cursor: string
 }
 
-export type MarketCandlesticks = {
-  market: KalshiMarket
-  bounds: MarketUnixBounds
-  seriesTicker: string
-  timeframe: PeriodInterval
-  startTs: number
-  endTs: number
-  candlesticks: KalshiCandlestick[]
+export type EventMarketGroup = {
+  event_ticker: string
+  movieTitle: string
+  marketCount: number
 }
 
-export type MarketTickTrades = {
-  market: KalshiMarket
-  bounds: MarketUnixBounds
-  timeframe: TickTimeframe
-  trades: KalshiTrade[]
+export type ScoreBucket = {
+  label: string
+  minScore: number
+  maxScore: number
+  center: number
+  probability: number
 }
 
-export type MarketChartData = MarketCandlesticks | MarketTickTrades
+export type ScoreDistribution = {
+  buckets: ScoreBucket[]
+  mean: number
+  stdDev: number
+}
+
+export type RankedMovie = {
+  event_ticker: string
+  movieTitle: string
+  marketCount: number
+  distribution: ScoreDistribution
+  movieScore: number
+  rank: number
+}

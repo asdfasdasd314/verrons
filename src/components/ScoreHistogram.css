@@ -1,0 +1,137 @@
+.score-histogram-stats {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.score-histogram-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.score-histogram-stat-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.score-histogram-stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.score-histogram-chart-area {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.score-histogram-plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.score-histogram-bars-area {
+  position: relative;
+  height: 5rem;
+}
+
+.score-histogram-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.1rem;
+  width: 100%;
+  height: 100%;
+}
+
+.score-histogram-bar-group {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.score-histogram-bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.score-histogram-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--primary);
+  transition: opacity 0.15s;
+}
+
+.score-histogram-bar-wrap:hover .score-histogram-bar {
+  opacity: 0.82;
+}
+
+.score-histogram-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  z-index: 2;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 0.65rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.score-histogram-labels {
+  display: flex;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 2.5rem;
+  margin-top: 0.65rem;
+  overflow: visible;
+}
+
+.score-histogram-bar-label {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-top: 0.1rem;
+  font-size: clamp(0.45rem, 1.4vw, 0.58rem);
+  line-height: 1;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transform: rotate(-15deg);
+  transform-origin: left top;
+}
+
+.score-histogram-y-axis {
+  flex-shrink: 0;
+  width: 2rem;
+}
+
+.score-histogram-y-axis-track {
+  position: relative;
+  height: 5rem;
+  border-left: 1px solid var(--border);
+}
+
+.score-histogram-y-axis-tick {
+  position: absolute;
+  left: 0.25rem;
+  font-size: 0.55rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  transform: translateY(50%);
+}
