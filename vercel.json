@@ -6,6 +6,14 @@
       "destination": "https://external-api.kalshi.com/:path*"
     },
     {
+      "source": "/aaa-gas",
+      "destination": "https://gasprices.aaa.com/"
+    },
+    {
+      "source": "/aaa-gas/",
+      "destination": "https://gasprices.aaa.com/"
+    },
+    {
       "source": "/aaa-gas/:path*",
       "destination": "https://gasprices.aaa.com/:path*"
     }

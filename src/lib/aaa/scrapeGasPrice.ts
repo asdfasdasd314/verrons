@@ -1,4 +1,4 @@
-const AAA_GAS_PAGE = '/aaa-gas/'
+const AAA_GAS_PAGE = '/aaa-gas'
 
 const NUMB_PRICE_PATTERN = /class=["']numb["'][^>]*>\s*(\$[\d.]+)/i
 
