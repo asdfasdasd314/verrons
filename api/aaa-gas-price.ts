@@ -1,13 +1,23 @@
-import { scrapeAaaGasPrice } from '../src/lib/aaa/scrapeGasPrice'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { resolveSiteOrigin, scrapeAaaGasPrice } from '../lib/aaa/scrapeGasPrice'
 
 export default async function handler(
-  _request: Request,
-): Promise<Response> {
+  request: VercelRequest,
+  response: VercelResponse,
+): Promise<void> {
   try {
-    const price = await scrapeAaaGasPrice()
-    return Response.json({ price })
+    const siteOrigin = resolveSiteOrigin(
+      request.headers.referer,
+      request.headers['x-forwarded-host'] ?? request.headers.host,
+      request.headers['x-forwarded-proto'],
+      request.headers['x-site-origin'],
+    )
+    const price = await scrapeAaaGasPrice(siteOrigin)
+    response.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
+    response.status(200).json({ price })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to scrape AAA gas price'
-    return Response.json({ error: message }, { status: 500 })
+    const message =
+      error instanceof Error ? error.message : 'Failed to scrape AAA gas price'
+    response.status(500).json({ error: message })
   }
 }

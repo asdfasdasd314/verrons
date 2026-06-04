@@ -1,21 +1,27 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { scrapeAaaGasPrice } from './src/lib/aaa/scrapeGasPrice'
+import { resolveSiteOrigin, scrapeAaaGasPrice } from './lib/aaa/scrapeGasPrice'
 
 function aaaGasApiPlugin(): Plugin {
   const handleAaaGasPrice = async (
-    _req: import('http').IncomingMessage,
+    req: import('http').IncomingMessage,
     res: import('http').ServerResponse,
     next: () => void,
   ) => {
-    if (_req.url !== '/api/aaa-gas-price') {
+    if (req.url !== '/api/aaa-gas-price') {
       next()
       return
     }
 
     try {
-      const price = await scrapeAaaGasPrice()
+      const siteOrigin = resolveSiteOrigin(
+        req.headers.referer,
+        req.headers.host,
+        undefined,
+        req.headers['x-site-origin'],
+      )
+      const price = await scrapeAaaGasPrice(siteOrigin)
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ price }))
     } catch (error) {

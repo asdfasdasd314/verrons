@@ -1,5 +1,9 @@
 export async function fetchTodayAaaGasPrice(): Promise<string> {
-  const response = await fetch('/api/aaa-gas-price')
+  const response = await fetch('/api/aaa-gas-price', {
+    headers: {
+      'X-Site-Origin': window.location.origin,
+    },
+  })
   if (!response.ok) {
     throw new Error(`AAA gas price API error: ${response.status}`)
   }
