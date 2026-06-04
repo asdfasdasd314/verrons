@@ -4,6 +4,10 @@
     {
       "source": "/kalshi-api/:path*",
       "destination": "https://external-api.kalshi.com/:path*"
+    },
+    {
+      "source": "/aaa-gas/:path*",
+      "destination": "https://gasprices.aaa.com/:path*"
     }
   ]
 }
